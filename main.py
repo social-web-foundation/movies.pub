@@ -2,9 +2,27 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, status
 from fastapi.responses import JSONResponse
 import httpx
+from cachetools import TTLCache
+from asyncio import Lock
 
 class ActivityJSONResponse(JSONResponse):
     media_type = "application/activity+json"
+
+_movie_cache: TTLCache[str, dict] = TTLCache[str, dict](maxsize=10_000, ttl=3600)
+_locks: dict[str, Lock] = {}
+
+async def fetch_movie(qid: str, wd) -> dict:
+    if qid in _movie_cache:
+        return _movie_cache[qid]
+    lock = _locks.setdefault(qid, Lock())
+    async with lock:  # collapse concurrent misses for same qid
+        if qid in _movie_cache:
+            return _movie_cache[qid]
+        r = await wd.get(f"/wiki/Special:EntityData/{qid}.json")
+        r.raise_for_status()
+        data = r.json()
+        _movie_cache[qid] = data
+        return data
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -28,18 +46,10 @@ def livez() -> None:
 async def get_movie(qid: str) -> JSONResponse:
     if not qid.startswith("Q") or not qid[1:].isdigit():
         raise HTTPException(status_code=400, detail="Invalid Wikidata Q-id")
-    r = await app.state.wikidata.get(
-        "/wiki/Special:EntityData/" + qid + ".json"
-    )
-    if r.status_code == 404:
-        raise HTTPException(404)
-    r.raise_for_status()
-    if "json" not in r.headers.get("content-type", ""):
-        raise HTTPException(502, "Upstream returned non-JSON")
     try:
-        json = r.json()
-    except ValueError:
-        raise HTTPException(502, "Upstream returned invalid JSON")
+        json = await fetch_movie(qid, app.state.wikidata)
+    except Exception:
+        raise HTTPException(status_code=500, detail="Invalid Wikidata Q-id")
     if not "entities" in json or not qid in json["entities"]:
         raise HTTPException(status_code=500, detail="Unexpected Wikidata format")
     film = json["entities"][qid]

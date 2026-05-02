@@ -11,3 +11,10 @@ def test_movie_returns_video():
       assert body["type"] == "Video"
       assert body["id"] == "https://movies.pub/movie/Q107105860"
       assert body["name"] == "Project Hail Mary"
+
+def test_movie_returns_video_on_warm_cache():
+    with TestClient(app) as client:
+      response = client.get("/movie/Q487181")
+      assert response.status_code == 200
+      response = client.get("/movie/Q487181")
+      assert response.status_code == 200
