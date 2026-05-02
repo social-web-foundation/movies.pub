@@ -55,6 +55,10 @@ async def fetch_search_results(q: str, lng: str, wd) -> list[dict]:
         qids = list(map(lambda page: page.get("title", None), pages))
         qids = list(filter(lambda qid: qid is not None and len(qid) > 1 and qid[0] == "Q" and qid[1:].isdigit(), qids))
 
+        if not qids:
+            _search_cache[(q, lng)] = []
+            return []
+
         r = await wd.get(
             "/w/api.php",
             params={
@@ -70,7 +74,7 @@ async def fetch_search_results(q: str, lng: str, wd) -> list[dict]:
         r.raise_for_status()
         data = r.json()
 
-        entities = data["entities"]
+        entities = data.get("entities", {})
 
         items = []
 
