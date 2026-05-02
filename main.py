@@ -28,7 +28,9 @@ async def fetch_movie(qid: str, wd) -> dict:
 async def lifespan(app: FastAPI):
     app.state.wikidata = httpx.AsyncClient(
         base_url="https://www.wikidata.org",
-        headers={"User-Agent": "movies.pub/0.1 (https://movies.pub)"},
+        headers={
+            "User-Agent": "movies.pub/0.1 (https://movies.pub; evanp@socialweb.foundation)"
+        },
         timeout=10.0,
     )
     try:
@@ -48,8 +50,22 @@ async def get_movie(qid: str) -> JSONResponse:
         raise HTTPException(status_code=400, detail="Invalid Wikidata Q-id")
     try:
         json = await fetch_movie(qid, app.state.wikidata)
-    except Exception:
-        raise HTTPException(status_code=500, detail="Invalid Wikidata Q-id")
+    except httpx.HTTPStatusError as e:
+        upstream = e.response.status_code
+        if upstream == 404:
+            raise HTTPException(status_code=404, detail=f"Movie {qid} not found")
+        if upstream == 429:
+            raise HTTPException(status_code=503, detail="Upstream rate limited")
+        raise HTTPException(status_code=502, detail=f"Upstream error {upstream}")
+    except httpx.TimeoutException as e:
+        raise HTTPException(status_code=504, detail="Upstream timeout")
+    except httpx.RequestError as e:
+        # connection errors, DNS, TLS, etc.
+        raise HTTPException(status_code=502, detail=f"Upstream unreachable: {e!r}")
+    except ValueError as e:
+        raise HTTPException(status_code=502, detail="Upstream returned invalid JSON")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Unknown upstream error")
     if not "entities" in json or not qid in json["entities"]:
         raise HTTPException(status_code=500, detail="Unexpected Wikidata format")
     film = json["entities"][qid]
