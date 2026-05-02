@@ -1,0 +1,13 @@
+from fastapi.testclient import TestClient
+
+from main import app
+
+def test_movie_returns_video():
+    with TestClient(app) as client:
+      response = client.get("/movie/Q107105860")
+      assert response.status_code == 200
+      assert response.headers["content-type"].startswith("application/activity+json")
+      body = response.json()
+      assert body["type"] == "Video"
+      assert body["id"] == "https://movies.pub/movie/Q107105860"
+      assert body["name"] == "Project Hail Mary"
