@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, status, Request, Response
 from fastapi.responses import JSONResponse
 import httpx
 from cachetools import TTLCache
@@ -44,8 +44,8 @@ app = FastAPI(title="movies.pub", lifespan=lifespan)
 def livez() -> None:
     return None
 
-@app.get("/movie/{qid}")
-async def get_movie(qid: str) -> JSONResponse:
+@app.api_route("/movie/{qid}", methods=["GET", "HEAD"])
+async def get_movie(qid: str, request: Request) -> Response:
     if not qid.startswith("Q") or not qid[1:].isdigit():
         raise HTTPException(status_code=400, detail="Invalid Wikidata Q-id")
     try:
@@ -72,9 +72,13 @@ async def get_movie(qid: str) -> JSONResponse:
     # TODO: pick a better default name
     name = film["labels"]["en"]["value"]
     # TODO: grab all names in nameMap
-    return ActivityJSONResponse({
-        "@context": "https://www.w3.org/ns/activitystreams",
-        "id": f"https://movies.pub/movie/{qid}",
-        "type": "Video",
-        "name": name
-    })
+
+    if request.method == "HEAD":
+        return Response(status_code=200, media_type="application/activity+json")
+    else:
+        return ActivityJSONResponse({
+            "@context": "https://www.w3.org/ns/activitystreams",
+            "id": f"https://movies.pub/movie/{qid}",
+            "type": "Video",
+            "name": name
+        })
