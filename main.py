@@ -4,6 +4,10 @@ from fastapi.responses import JSONResponse
 import httpx
 from cachetools import TTLCache
 from asyncio import Lock
+from urllib.parse import quote
+import logging
+
+log = logging.getLogger(__name__)
 
 class ActivityJSONResponse(JSONResponse):
     media_type = "application/activity+json"
@@ -23,6 +27,77 @@ async def fetch_movie(qid: str, wd) -> dict:
         data = r.json()
         _movie_cache[qid] = data
         return data
+
+_search_cache: TTLCache[tuple, list[dict]] = TTLCache[tuple, list[dict]](maxsize=10_000, ttl=300)
+_search_locks: dict[tuple, Lock] = {}
+
+async def fetch_search_results(q: str, lng: str, wd) -> list[dict]:
+    if (q, lng) in _search_cache:
+        return _search_cache[(q, lng)]
+    lock = _search_locks.setdefault((q, lng), Lock())
+    async with lock:  # collapse concurrent misses for same qid
+        if (q, lng) in _search_cache:
+            return _search_cache[(q, lng)]
+        r = await wd.get(
+            "/w/rest.php/v1/search/page",
+            params={
+                "q": f'inlabel:"{q}"@{lng} haswbstatement:P31=Q11424',
+                "limit": 20,
+            },
+        )
+
+        r.raise_for_status()
+
+        json = r.json()
+
+        pages = json.get("pages", [])
+
+        qids = list(map(lambda page: page.get("title", None), pages))
+        qids = list(filter(lambda qid: qid is not None and len(qid) > 1 and qid[0] == "Q" and qid[1:].isdigit(), qids))
+
+        r = await wd.get(
+            "/w/api.php",
+            params={
+                "action": "wbgetentities",
+                "ids": "|".join(qids),          # qids is your list[str]
+                "props": "labels",
+                "languages": lng,                # or f"{lng}|en" for fallback
+                "format": "json",
+                "formatversion": "2",
+            },
+        )
+
+        r.raise_for_status()
+        data = r.json()
+
+        entities = data["entities"]
+
+        items = []
+
+        for qid in qids:
+            entity = entities.get(qid, None)
+            if entity is None:
+                continue
+            labels = entity.get("labels", None)
+            if labels is None:
+                continue
+            if not isinstance(labels, dict):
+                continue
+            if lng not in labels:
+                continue
+            if "value" not in labels[lng]:
+                continue
+            nameMap = {}
+            nameMap[lng] = labels[lng]["value"]
+            items.append({
+                "type": "Video",
+                "id": f"https://movies.pub/movie/{qid}",
+                "nameMap": nameMap
+            })
+
+        _search_cache[(q, lng)] = items
+
+        return items
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -81,4 +156,25 @@ async def get_movie(qid: str, request: Request) -> Response:
             "id": f"https://movies.pub/movie/{qid}",
             "type": "Video",
             "name": name
+        })
+
+@app.api_route("/search/movie", methods=["GET", "HEAD"])
+async def search_movie(request: Request, q: str, lng: str = 'en') -> Response:
+
+    try:
+        items = await fetch_search_results(q, lng, app.state.wikidata)
+    except Exception as e:
+        log.exception("search_movie failed: q=%r lng=%r", q, lng)
+        raise HTTPException(status_code=500, detail="Unknown upstream error")
+
+    if request.method == "HEAD":
+        return Response(status_code=200, media_type="application/activity+json")
+    else:
+        return ActivityJSONResponse({
+            "@context": "https://www.w3.org/ns/activitystreams",
+            "id": f"https://movies.pub/search/movie?q={quote(q, safe="")}&lng={quote(lng, safe="")}",
+            "type": "Collection",
+            "summary": f"Search for movies with title {q} in language {lng}",
+            "totalItems": len(items),
+            "items": items
         })
