@@ -31,7 +31,15 @@ async def get_movie(qid: str) -> JSONResponse:
     r = await app.state.wikidata.get(
         "/wiki/Special:EntityData/" + qid + ".json"
     )
-    json = r.json()
+    if r.status_code == 404:
+        raise HTTPException(404)
+    r.raise_for_status()
+    if "json" not in r.headers.get("content-type", ""):
+        raise HTTPException(502, "Upstream returned non-JSON")
+    try:
+        json = r.json()
+    except ValueError:
+        raise HTTPException(502, "Upstream returned invalid JSON")
     if not "entities" in json or not qid in json["entities"]:
         raise HTTPException(status_code=500, detail="Unexpected Wikidata format")
     film = json["entities"][qid]
