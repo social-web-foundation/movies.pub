@@ -1,11 +1,13 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, status, Request, Response
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 import httpx
 from cachetools import TTLCache
 from asyncio import Lock
 from urllib.parse import quote
 import logging
+
 
 log = logging.getLogger(__name__)
 
@@ -118,6 +120,13 @@ async def lifespan(app: FastAPI):
         await app.state.wikidata.aclose()
 
 app = FastAPI(title="movies.pub", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["GET", "HEAD", "OPTIONS"],
+    allow_headers=["*"],
+)
 
 @app.get("/livez", status_code=status.HTTP_204_NO_CONTENT)
 def livez() -> None:

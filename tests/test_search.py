@@ -24,3 +24,25 @@ def test_search_duplicate_request():
         assert response.status_code == 200
         response = client.get("/search/movie?q=Godfather")
         assert response.status_code == 200
+
+def test_search_cors_allows_any_origin():
+    with TestClient(app) as client:
+        response = client.get(
+            "/search/movie?q=Star%20Wars",
+            headers={"Origin": "https://example.com"},
+        )
+        assert response.status_code == 200
+        assert response.headers.get("access-control-allow-origin") == "*"
+
+
+def test_search_cors_preflight():
+    with TestClient(app) as client:
+        response = client.options(
+            "/search/movie",
+            headers={
+                "Origin": "https://example.com",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+        assert response.status_code == 200
+        assert response.headers.get("access-control-allow-origin") == "*"

@@ -24,3 +24,26 @@ def test_movie_head():
         response = client.head("/movie/Q1306890")
         assert response.status_code == 200
         assert response.content == b""
+
+
+def test_movie_cors_allows_any_origin():
+    with TestClient(app) as client:
+        response = client.get(
+            "/movie/Q107105860",
+            headers={"Origin": "https://example.com"},
+        )
+        assert response.status_code == 200
+        assert response.headers.get("access-control-allow-origin") == "*"
+
+
+def test_movie_cors_preflight():
+    with TestClient(app) as client:
+        response = client.options(
+            "/movie/Q107105860",
+            headers={
+                "Origin": "https://example.com",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+        assert response.status_code == 200
+        assert response.headers.get("access-control-allow-origin") == "*"
