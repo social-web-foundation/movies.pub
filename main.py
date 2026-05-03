@@ -45,7 +45,7 @@ async def fetch_search_results(q: str, lng: str, wd) -> list[dict]:
         r = await wd.get(
             "/w/rest.php/v1/search/page",
             params={
-                "q": f'inlabel:"{q}"@{lng} haswbstatement:P31=Q11424',
+                "q": f'inlabel:"{q}" haswbstatement:P31=Q11424',
                 "limit": 20,
             },
         )
@@ -63,43 +63,93 @@ async def fetch_search_results(q: str, lng: str, wd) -> list[dict]:
             _search_cache[(q, lng)] = []
             return []
 
-        r = await wd.get(
+        ids_fragment = ", ".join(f"\"{qid}\"" for qid in qids)
+        movie_details_graphql_query = f"""
+            query movie_details {{
+            itemsById(ids: [{ids_fragment}]) {{
+
+                    qid: id
+                    en_label: label(languageCode: "en")
+                    lng_label: label(languageCode: "{lng}")
+
+                    title: statements(propertyId: "P1476") {{
+                        value {{
+                            ... on MonolingualTextValue {{
+                                language
+                                text
+                            }}
+                        }}
+                    }}
+
+                    director: statements(propertyId: "P57") {{
+                        value {{
+                            ... on ItemValue {{
+                                en_director: label(languageCode: "en")
+                                lng_director: label(languageCode: "{lng}")
+                            }}
+                        }}
+                    }}
+
+                    release: statements(propertyId: "P577") {{
+                        value {{
+                            ... on TimeValue {{
+                                time
+                            }}
+                        }}
+                    }}
+                }}
+            }}
+        """
+
+        r = await wd.post(
             "/w/api.php",
             params={
-                "action": "wbgetentities",
-                "ids": "|".join(qids),          # qids is your list[str]
-                "props": "labels",
-                "languages": lng,                # or f"{lng}|en" for fallback
+                "action": "wbgraphql",
                 "format": "json",
                 "formatversion": "2",
+            },
+            json={
+                "query": movie_details_graphql_query,
             },
         )
 
         r.raise_for_status()
-        data = r.json()
-
-        entities = data.get("entities", {})
+        data = r.json()['data']
+        entities = data.get("itemsById", [])
 
         items = []
 
-        for qid in qids:
-            entity = entities.get(qid, None)
-            if entity is None:
-                continue
-            labels = entity.get("labels", None)
-            if labels is None:
-                continue
-            if not isinstance(labels, dict):
-                continue
-            if lng not in labels:
-                continue
-            if "value" not in labels[lng]:
-                continue
+        for entity in entities:
+
+            qid = entity.get("qid", None)
+
             nameMap = {}
-            nameMap[lng] = labels[lng]["value"]
+            if "en_label" in entity and entity["en_label"] is not None:
+                nameMap["en"] = entity["en_label"]
+            if "lng_label" in entity and entity["lng_label"] is not None:
+                nameMap[lng] = entity["lng_label"]
+            if entity["en_label"] is None and entity["lng_label"] is None:
+                continue
+
+            # Since release(s) can have multiple values, only parse the oldest one
+            # TODO: we can't get country release info from WB GraphQL right now, but
+            #       when it will be possibly we should prefer release date+country
+            release_date = None
+            if "release" in entity and entity["release"] is not None and len(entity["release"]) > 0:
+                sorted_releases = sorted(entity["release"], key=lambda r: r["value"]["time"])
+                release_date = sorted_releases[0]["value"]["time"].split("T")[0][1:] # Get date and remove "+" prefix (no movies BCE)
+
+            directors = []
+            if "director" in entity and entity["director"] is not None and len(entity["director"]) > 0:
+                for director_entry in entity["director"]:
+                    director_name = director_entry["value"].get(f"lng_director", None) or director_entry["value"].get("en_director", None)
+                    directors.append(director_name)
+
             items.append({
                 "type": "Video",
                 "id": f"https://movies.pub/movie/{qid}",
+                "directors": directors,
+                "release_date": release_date,
                 "nameMap": nameMap
             })
 
