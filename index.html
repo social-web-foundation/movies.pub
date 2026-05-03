@@ -25,6 +25,7 @@
   <nav>
     <ul>
       <li><a href="#api">API</a></li>
+      <li><a href="#usage">Usage</a></li>
       <li><a href="#code">Code</a></li>
       <li><a href="#contact">Contact</a></li>
     </ul>
@@ -46,6 +47,28 @@
       Search for films in Wikidata, using the name in search-term.
     </p>
     </section>
+  </section>
+  <section id="usage">
+    <h2>Usage</h2>
+    <p>
+      The most typical usage would be in a <code>View</code>
+      activity.
+    </p>
+    <pre><code>
+      {
+        "@context": "https://www.w3.org/ns/activitystreams",
+        "id": "https://social.example/user/evanp/view/396",
+        "type": "View",
+        "actor": "https://social.example/user/evanp",
+        "object": {
+          "id": "https://movies.pub/movie/Q17738",
+          "type": "Video",
+          "nameMap": {
+            "en": "Star Wars: Episode IV – A New Hope"
+          }
+        }
+      }
+    </code></pre>
   </section>
   <section id="code">
     <h2>Code</h2>
