@@ -7,7 +7,9 @@ from cachetools import TTLCache
 from asyncio import Lock
 from urllib.parse import quote
 import logging
+from pathlib import Path
 
+INDEX = Path(__file__).parent / "index.html"
 
 log = logging.getLogger(__name__)
 
@@ -197,4 +199,4 @@ def home(request: Request) -> Response:
     if request.method == "HEAD":
         return Response(status_code=200, media_type="text/html")
     else:
-        return FileResponse("index.html", media_type="text/html")
+        return FileResponse(INDEX, media_type="text/html")
