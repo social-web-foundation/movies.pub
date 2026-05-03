@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, status, Request, Response
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
 from cachetools import TTLCache
@@ -191,3 +191,10 @@ async def search_movie(request: Request, q: str, lng: str = 'en') -> Response:
             "totalItems": len(items),
             "items": items
         })
+
+@app.api_route("/", methods=["GET", "HEAD"])
+def home(request: Request) -> Response:
+    if request.method == "HEAD":
+        return Response(status_code=200, media_type="text/html")
+    else:
+        return FileResponse("index.html", media_type="text/html")

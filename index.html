@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>movies.pub</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      max-width: 65ch;
+      margin: 2rem auto;
+      padding: 0 1rem;
+      text-align: left;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>movies.pub</h1>
+  <p>
+    movies.pub is a movie data server for the <a
+      href="https://en.wikipedia.org/wiki/Fediverse">Fediverse</a>. It provides ActivityPub objects for all the movies in <a href="https://www.wikidata.org/">Wikidata</a>.
+  </p>
+  <nav>
+    <ul>
+      <li><a href="#api">API</a></li>
+      <li><a href="#code">Code</a></li>
+      <li><a href="#contact">Contact</a></li>
+    </ul>
+  </nav>
+  <section id="api">
+    <h2>API</h2>
+    <p>
+      The service supports two main endpoints.
+    </p>
+    <section id="movie">
+    <h3>https://movie.pub/movie/{q-item}</h3>
+    <p>
+      Given the Q-ID of a film on Wikidata, provides the data for the movie in Activity Streams 2.0 format.
+    </p>
+    </section>
+    <section id="search">
+    <h3>https://movie.pub/search/movie?q={search-term}&lng={language}</h3>
+    <p>
+      Search for films in Wikidata, using the name in search-term.
+    </p>
+    </section>
+  </section>
+  <section id="code">
+    <h2>Code</h2>
+    <p>
+      Code is at <a href="https://github.com/social-web-foundation/movies.pub/">https://github.com/social-web-foundation/movies.pub/</a>.
+    </p>
+  </section>
+  <section id="contact">
+    <h2>Contact</h2>
+    <p>
+      The best way to report problems with movies.pub is to <a
+        href="https://github.com/social-web-foundation/movies.pub/issues/new">Create a new issue on GitHub</a>.
+    </p>
+    <p>
+      If you have private information you want to share, or you just don&apos;t feel like posting a GitHub issue, you
+      can use our <a href="https://socialwebfoundation.org/contact/">contact form</a> to send us a private message.
+    </p>
+  </section>
+</body>
+
+</html>
