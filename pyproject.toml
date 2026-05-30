@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
     "cachetools>=7.1.0",
-    "fastapi>=0.136.1",
+    "fastapi>=0.136.3",
     "httpx>=0.28.1",
     "uvicorn[standard]>=0.46.0",
 ]
